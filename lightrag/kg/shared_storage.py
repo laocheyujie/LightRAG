@@ -24,22 +24,22 @@ def direct_log(message, level="INFO", enable_output: bool = True):
 T = TypeVar("T")
 LockType = Union[ProcessLock, asyncio.Lock]
 
-_is_multiprocess = None
-_workers = None
-_manager = None
-_initialized = None
+_is_multiprocess = None  # 是否是多进程模式
+_workers = None  # 工作进程数量
+_manager = None  # 多进程Manager实例
+_initialized = None  # 是否已初始化
 
 # shared data for storage across processes
-_shared_dicts: Optional[Dict[str, Any]] = None
-_init_flags: Optional[Dict[str, bool]] = None  # namespace -> initialized
-_update_flags: Optional[Dict[str, bool]] = None  # namespace -> updated
+_shared_dicts = None  # 共享字典，用于存储不同命名空间的数据
+_init_flags = None  # 初始化标志，记录命名空间是否已初始化
+_update_flags = None  # 更新标志，用于通知工作进程更新数据
 
 # locks for mutex access
-_storage_lock: Optional[LockType] = None
-_internal_lock: Optional[LockType] = None
-_pipeline_status_lock: Optional[LockType] = None
-_graph_db_lock: Optional[LockType] = None
-_data_init_lock: Optional[LockType] = None
+_storage_lock = None  # 存储锁
+_internal_lock = None  # 内部锁
+_pipeline_status_lock = None  # 流水线状态锁
+_graph_db_lock = None  # 图数据库锁
+_data_init_lock = None  # 数据初始化锁
 
 # async locks for coroutine synchronization in multiprocess mode
 _async_locks: Optional[Dict[str, asyncio.Lock]] = None
@@ -56,14 +56,15 @@ class UnifiedLock(Generic[T]):
         enable_logging: bool = True,
         async_lock: Optional[asyncio.Lock] = None,
     ):
-        self._lock = lock
-        self._is_async = is_async
-        self._pid = os.getpid()  # for debug only
-        self._name = name  # for debug only
-        self._enable_logging = enable_logging  # for debug only
-        self._async_lock = async_lock  # auxiliary lock for coroutine synchronization
+        self._lock = lock  # 主锁
+        self._is_async = is_async  # 是否是异步模式
+        self._pid = os.getpid()  # 进程ID（用于调试）
+        self._name = name  # 锁的名称（用于调试）
+        self._enable_logging = enable_logging  # 是否启用日志
+        self._async_lock = async_lock  # 辅助异步锁
 
     async def __aenter__(self) -> "UnifiedLock[T]":
+        # 获取锁的逻辑
         try:
             direct_log(
                 f"== Lock == Process {self._pid}: Acquiring lock '{self._name}' (async={self._is_async})",
@@ -71,6 +72,7 @@ class UnifiedLock(Generic[T]):
             )
 
             # If in multiprocess mode and async lock exists, acquire it first
+            # 1. 如果是多进程模式且有异步锁，先获取异步锁
             if not self._is_async and self._async_lock is not None:
                 direct_log(
                     f"== Lock == Process {self._pid}: Acquiring async lock for '{self._name}'",
@@ -83,6 +85,7 @@ class UnifiedLock(Generic[T]):
                 )
 
             # Then acquire the main lock
+            # 2. 获取主锁
             if self._is_async:
                 await self._lock.acquire()
             else:
@@ -95,6 +98,7 @@ class UnifiedLock(Generic[T]):
             return self
         except Exception as e:
             # If main lock acquisition fails, release the async lock if it was acquired
+            # 如果获取主锁失败，释放已获取的异步锁
             if (
                 not self._is_async
                 and self._async_lock is not None
@@ -110,6 +114,7 @@ class UnifiedLock(Generic[T]):
             raise
 
     async def __aexit__(self, exc_type, exc_val, exc_tb):
+        # 释放锁的逻辑
         main_lock_released = False
         try:
             direct_log(
@@ -118,6 +123,7 @@ class UnifiedLock(Generic[T]):
             )
 
             # Release main lock first
+            # 1. 先释放主锁
             if self._is_async:
                 self._lock.release()
             else:
@@ -126,6 +132,7 @@ class UnifiedLock(Generic[T]):
             main_lock_released = True
 
             # Then release async lock if in multiprocess mode
+            # 2. 如果是多进程模式，释放异步锁
             if not self._is_async and self._async_lock is not None:
                 direct_log(
                     f"== Lock == Process {self._pid}: Releasing async lock for '{self._name}'",
@@ -145,6 +152,7 @@ class UnifiedLock(Generic[T]):
             )
 
             # If main lock release failed but async lock hasn't been released, try to release it
+            # 如果释放主锁失败，尝试释放异步锁
             if (
                 not main_lock_released
                 and not self._is_async
@@ -179,6 +187,7 @@ class UnifiedLock(Generic[T]):
                 f"== Lock == Process {self._pid}: Acquiring lock '{self._name}' (sync)",
                 enable_output=self._enable_logging,
             )
+            # 同步模式下的锁获取
             self._lock.acquire()
             direct_log(
                 f"== Lock == Process {self._pid}: Lock '{self._name}' acquired (sync)",
@@ -202,6 +211,7 @@ class UnifiedLock(Generic[T]):
                 f"== Lock == Process {self._pid}: Releasing lock '{self._name}' (sync)",
                 enable_output=self._enable_logging,
             )
+            # 同步模式下的锁释放
             self._lock.release()
             direct_log(
                 f"== Lock == Process {self._pid}: Lock '{self._name}' released (sync)",
@@ -318,6 +328,9 @@ def initialize_share_data(workers: int = 1):
 
     _workers = workers
 
+    # NOTE: _XXX 表示进程锁; _async_locks 表示异步锁
+    # 多进程时，进程锁和异步锁分开创建;
+    # 单进程时，进程锁和异步锁使用同一个异步锁
     if workers > 1:
         _is_multiprocess = True
         _manager = Manager()
