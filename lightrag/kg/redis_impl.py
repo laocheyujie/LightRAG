@@ -30,6 +30,7 @@ SOCKET_CONNECT_TIMEOUT = 3.0
 @dataclass
 class RedisKVStorage(BaseKVStorage):
     def __post_init__(self):
+        # 环境变量 > 配置文件 > 默认值
         redis_url = os.environ.get(
             "REDIS_URI", config.get("redis", "uri", fallback="redis://localhost:6379")
         )
@@ -100,6 +101,7 @@ class RedisKVStorage(BaseKVStorage):
                 return [None] * len(ids)
 
     async def filter_keys(self, keys: set[str]) -> set[str]:
+        # 过滤一组键（keys），找出哪些键在 Redis 中不存在
         async with self._get_redis_connection() as redis:
             pipe = redis.pipeline()
             for key in keys:

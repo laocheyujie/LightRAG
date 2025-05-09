@@ -85,6 +85,7 @@ class PostgreSQLDB:
     @staticmethod
     async def configure_age(connection: asyncpg.Connection, graph_name: str) -> None:
         """Set the Apache AGE environment and creates a graph if it does not exist.
+        配置 Apache AGE（一个 PostgreSQL 的图数据库扩展）的环境
 
         This method:
         - Sets the PostgreSQL `search_path` to include `ag_catalog`, ensuring that Apache AGE functions can be used without specifying the schema.
@@ -93,12 +94,26 @@ class PostgreSQLDB:
 
         """
         try:
+            # 1. 设置搜索路径，使 AGE 函数可以直接使用
+            # ag_catalog：Apache AGE 的系统目录
+            # "$user"：当前用户的模式
+            # public：默认的公共模式
+            # 设置搜索路径，可以直接使用 AGE 的函数而不需要指定模式名
             await connection.execute(  # type: ignore
                 'SET search_path = ag_catalog, "$user", public'
             )
-            await connection.execute(  # type: ignore
-                f"select create_graph('{graph_name}')"
+            # 2. 创建新的图
+            # 用 AGE 的 create_graph 函数创建新的图
+            # 图名由参数 graph_name 指定
+            # 官方的有SQL注入风险
+            # await connection.execute(  # type: ignore
+            #     f"select create_graph('{graph_name}')"
+            # )
+            await connection.execute(
+                "select create_graph($1)",
+                graph_name
             )
+            
         except (
             asyncpg.exceptions.InvalidSchemaNameError,
             asyncpg.exceptions.UniqueViolationError,

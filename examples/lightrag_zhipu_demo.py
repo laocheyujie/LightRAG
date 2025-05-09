@@ -44,7 +44,7 @@ def main():
     # Initialize RAG instance
     rag = asyncio.run(initialize_rag())
 
-    with open("./book.txt", "r", encoding="utf-8") as f:
+    with open("./data/book.txt", "r", encoding="utf-8") as f:
         rag.insert(f.read())
 
     # Perform naive search

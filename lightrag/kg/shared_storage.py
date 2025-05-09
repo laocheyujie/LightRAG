@@ -409,29 +409,36 @@ async def get_update_flag(namespace: str):
     Returen the update flag to caller for referencing or reset.
     """
     global _update_flags
+    # 1. 检查初始化状态
     if _update_flags is None:
         raise ValueError("Try to create namespace before Shared-Data is initialized")
 
+    # 2. 使用锁保护共享数据访问
     async with get_internal_lock():
+        # 3. 如果命名空间不存在，初始化它
         if namespace not in _update_flags:
             if _is_multiprocess and _manager is not None:
-                _update_flags[namespace] = _manager.list()
+                _update_flags[namespace] = _manager.list()  # 多进程模式使用共享列表
             else:
-                _update_flags[namespace] = []
+                _update_flags[namespace] = []  # 单进程模式使用普通列表
             direct_log(
                 f"Process {os.getpid()} initialized updated flags for namespace: [{namespace}]"
             )
-
+        
+        # 4. 创建新的更新标志
         if _is_multiprocess and _manager is not None:
+            # 多进程模式：使用共享的Value对象
             new_update_flag = _manager.Value("b", False)
         else:
             # Create a simple mutable object to store boolean value for compatibility with mutiprocess
+            # 单进程模式：使用自定义的可变布尔对象
             class MutableBoolean:
                 def __init__(self, initial_value=False):
                     self.value = initial_value
 
             new_update_flag = MutableBoolean(False)
 
+        # 5. 将新标志添加到命名空间的标志列表中
         _update_flags[namespace].append(new_update_flag)
         return new_update_flag
 
