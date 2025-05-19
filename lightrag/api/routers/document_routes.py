@@ -44,6 +44,7 @@ class ScanResponse(BaseModel):
     )
 
     class Config:
+        # NOTE: 定义了一个示例响应，展示了 API 返回数据的预期格式，对于 API 文档生成非常有用
         json_schema_extra = {
             "example": {
                 "status": "scanning_started",

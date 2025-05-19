@@ -90,6 +90,7 @@ def get_combined_auth_dependency(api_key: Optional[str] = None):
         else Security(api_key_header),
     ):
         # 1. Check if path is in whitelist
+        # NOTE: 白名单里的路径不进行 token 认证和 API Key 认证的检查
         path = request.url.path
         for pattern, is_prefix in whitelist_patterns:
             if (is_prefix and path.startswith(pattern)) or (

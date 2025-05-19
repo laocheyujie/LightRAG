@@ -212,6 +212,9 @@ def main():
 
     # Run the application
     print("\nStarting Gunicorn with direct Python API...")
+    # NOTE: initialize_share_data的调用发生在app.run()之前
+    # 此时还没有worker进程被创建
+    # 当主进程fork出worker进程时，worker进程会继承主进程的内存空间
     app.run()
 
 

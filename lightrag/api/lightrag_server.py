@@ -602,6 +602,7 @@ def check_and_install_dependencies():
 
 def main():
     # Check if running under Gunicorn
+    # NOTE: Gunicorn 同步框架，多进程 + 多线程，使用多个worker；Uvicorn 异步框架，异步事件循环，使用1个worker
     if "GUNICORN_CMD_ARGS" in os.environ:
         # If started with Gunicorn, return directly as Gunicorn will call get_application
         print("Running under Gunicorn - worker management handled by Gunicorn")
